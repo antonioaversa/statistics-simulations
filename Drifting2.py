@@ -2,69 +2,85 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 
-def simulate(drift, days=365, window=30, mean=100, std_dev=25):
-    # Initialize bins
-    bins = [0, 0, 0]
+def top(window=30, gaussian=True, firstBin=2.0, secondBin=2.5):
 
-    # Initialize deque with maxlen equal to window size
-    last_days = deque(maxlen=window)
+    def simulate(drift, days=365, mean=100, std_dev=10):
+        # Initialize bins
+        bins = [0, 0, 0]
 
-    # Generate data points
-    data_points = np.random.normal(mean, std_dev, days)
+        # Initialize deque with maxlen equal to window size
+        last_days = deque(maxlen=window)
 
-    for day, X in enumerate(data_points, start=1):
-        # Adjust mean and std_dev for drift
-        adjusted_mean = mean + mean * (drift * day / 100)
-        adjusted_std_dev = std_dev + std_dev * (drift * day / 100)
+        # Generate data points
+        data_points = np.random.normal(mean, std_dev, days)
 
-        # Generate new data point with adjusted mean and std_dev
-        X = np.random.normal(adjusted_mean, adjusted_std_dev, 1)[0]
+        for day, X in enumerate(data_points, start=1):
+            # Adjust mean and std_dev for drift
+            adjusted_mean = mean * (1 + drift * day)
+            adjusted_std_dev = std_dev * (1 + drift * day)
 
-        # Append new data point to last_days
-        last_days.append(X)   
+            if (gaussian):
+                # Generate new data point with adjusted mean and std_dev
+                X = np.random.normal(adjusted_mean, adjusted_std_dev, 1)[0]
+            else:
+                # Here, 'df' is the degrees of freedom parameter. Lower values give heavier tails.
+                df = 1
+                X = np.random.standard_t(df, 1)[0] * adjusted_std_dev + adjusted_mean
 
-        # Calculate mean and std_dev of last_days
-        M = np.mean(last_days)
-        S = np.std(last_days)
+            # Append new data point to last_days
+            last_days.append(X)   
 
-        # Calculate z-score
-        Z = abs((X - M) / S)
+            # Calculate mean and std_dev of last_days
+            M = np.mean(last_days)
+            S = np.std(last_days)
 
-        # Update bins
-        if Z < 1.5:
-            bins[0] += 1
-        elif Z < 2:
-            bins[1] += 1
-        else:
-            bins[2] += 1         
+            # Calculate z-score
+            Z = abs((X - M) / S)
 
-    # Calculate detection rate
-    detection_rate = (bins[1] + bins[2]) / sum(bins)
+            # Update bins
+            if Z < 2:
+                bins[0] += 1
+            elif Z < 2.5:
+                bins[1] += 1
+            else:
+                bins[2] += 1         
 
-    return detection_rate
+        # Calculate detection rate
+        detection_rate = (bins[1] + bins[2]) / sum(bins)
 
-# Initialize dictionary for drifts to detection rates
-drifts_to_detection_rates = {}
+        return detection_rate
 
-# Run simulation for drifts from 0 to 30% in increments of 0.2%
-for drift in np.arange(0, 0.3, 0.002):
-    drifts_to_detection_rates[drift] = simulate(drift)
+    # Initialize dictionary for drifts to detection rates
+    drifts_to_detection_rates = {}
 
-# Get drifts and detection rates as lists
-drifts = list(drifts_to_detection_rates.keys())
-detection_rates = list(drifts_to_detection_rates.values())
+    # Run simulation for drifts from 0 to 30% in increments of 0.2%
+    for drift in np.arange(0, 0.3, 0.002):
+        drifts_to_detection_rates[drift] = simulate(drift)
 
-# Plot drifts vs detection rates
-plt.scatter(drifts, detection_rates)
+    # Get drifts and detection rates as lists
+    drifts = list(drifts_to_detection_rates.keys())
+    detection_rates = list(drifts_to_detection_rates.values())
 
-# Calculate coefficients for the polynomial (Here, 1 means we want a degree one polynomial which is a straight line)
-coefficients = np.polyfit(drifts, detection_rates, 1)
+    # Plot drifts vs detection rates
+    plt.scatter(drifts, detection_rates)
 
-# Generate y-values based on the trend line
-trendline = np.poly1d(coefficients)
-plt.plot(drifts, trendline(drifts), color='red')
+    # Calculate coefficients for the polynomial (Here, 1 means we want a degree one polynomial which is a straight line)
+    coefficients = np.polyfit(drifts, detection_rates, 1)
 
-plt.xlabel('Drifts')
-plt.ylabel('Detection Rates')
-plt.title('Drifts vs Detection Rates')
+    # Generate y-values based on the trend line
+    trendline = np.poly1d(coefficients)
+    plt.plot(drifts, trendline(drifts), color='red')
+
+    plt.xlabel('Drifts')
+    plt.ylabel('Detection Rates')
+    plt.title('Drifts vs Detection Rates')
+    plt.show(block=True)
+
+top(window=7, gaussian=True, firstBin=2.0, secondBin=2.5)
+top(window=14, gaussian=True, firstBin=2.0, secondBin=2.5)
+top(window=30, gaussian=True, firstBin=2.0, secondBin=2.5)
+top(window=7, gaussian=False, firstBin=2.0, secondBin=2.5)
+top(window=14, gaussian=False, firstBin=2.0, secondBin=2.5)
+top(window=30, gaussian=False, firstBin=2.0, secondBin=2.5)
+
 plt.show()
